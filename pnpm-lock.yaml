@@ -11,18 +11,27 @@ importers:
       '@ai-sdk/openai':
         specifier: ^1.3.22
         version: 1.3.22(zod@3.25.67)
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@mastra/core':
         specifier: ^0.10.5
         version: 0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67)
       '@mastra/libsql':
-        specifier: ^0.10.2
-        version: 0.10.2(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+        specifier: ^0.11.0
+        version: 0.11.0(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@mastra/loggers':
         specifier: ^0.10.2
         version: 0.10.2(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))
       '@mastra/memory':
-        specifier: ^0.10.3
-        version: 0.10.3(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(react@19.1.0)
+        specifier: ^0.11.1
+        version: 0.11.1(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(react@19.1.0)
+      '@solana/spl-token':
+        specifier: ^0.4.13
+        version: 0.4.13(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js':
+        specifier: ^1.98.2
+        version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       dotenv:
         specifier: ^16.5.0
         version: 16.5.0
@@ -364,15 +373,29 @@ packages:
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
     engines: {node: '>=0.1.90'}
 
+  '@coral-xyz/anchor-errors@0.31.1':
+    resolution: {integrity: sha512-NhNEku4F3zzUSBtrYz84FzYWm48+9OvmT1Hhnwr6GnPQry2dsEqH/ti/7ASjjpoFTWRnPXrjAIT1qM6Isop+LQ==}
+    engines: {node: '>=10'}
+
   '@coral-xyz/anchor@0.28.1-beta.2':
     resolution: {integrity: sha512-xreUcOFF8+IQKWOBUrDKJbIw2ftpRVybFlEPVrbSlOBCbreCWrQ5754Gt9cHIcuBDAzearCDiBqzsGQdNgPJiw==}
     engines: {node: '>=11'}
+
+  '@coral-xyz/anchor@0.31.1':
+    resolution: {integrity: sha512-QUqpoEK+gi2S6nlYc2atgT2r41TT3caWr/cPUEL8n8Md9437trZ68STknq897b82p5mW0XrTBNOzRbmIRJtfsA==}
+    engines: {node: '>=17'}
 
   '@coral-xyz/borsh@0.28.0':
     resolution: {integrity: sha512-/u1VTzw7XooK7rqeD7JLUSwOyRSesPUk0U37BV9zK0axJc1q0nRbKFGFLYCQ16OtdOJTTwGfGp11Lx9B45bRCQ==}
     engines: {node: '>=10'}
     peerDependencies:
       '@solana/web3.js': ^1.68.0
+
+  '@coral-xyz/borsh@0.31.1':
+    resolution: {integrity: sha512-9N8AU9F0ubriKfNE3g1WF0/4dtlGXoBN/hd1PvbNBamBNwRgHxH4P+o3Zt7rSEloW1HUs6LfZEchlx9fW7POYw==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      '@solana/web3.js': ^1.69.0
 
   '@esbuild/aix-ppc64@0.25.5':
     resolution: {integrity: sha512-9o3TMmpmftaCMepOdA5k/yDw8SfInyzWWTjYTFCX3kPSDJMROQTb8jg+h9Cnwnmm1vOzvxN7gIfB5V2ewpjtGA==}
@@ -737,10 +760,10 @@ packages:
     peerDependencies:
       '@mastra/core': ^0.10.2-alpha.0
 
-  '@mastra/libsql@0.10.2':
-    resolution: {integrity: sha512-cDfkDsiRZetlhrw6IcEeuFKQMA4DSCEATvwpJ0W2UREG/Zu7Ax07Wa1qH8zJiGudHhHw4LutQAoQTNB2tX8FXg==}
+  '@mastra/libsql@0.11.0':
+    resolution: {integrity: sha512-bnSXI24nJNYbZAN4z6rNlE7Vs0BStKLTbOLffRf9au0AUKRg44TBzGnJve/JpprPDT9KfFrww+CgdCYPWnSh7Q==}
     peerDependencies:
-      '@mastra/core': '>=0.10.4-0 <0.11.0'
+      '@mastra/core': '>=0.10.7-0 <0.11.0-0'
 
   '@mastra/loggers@0.10.2':
     resolution: {integrity: sha512-ooxINwsY0Gp8ROkZ9ZVRjTWFs1f3hmot/eSIJcPAnNoiRcbeBFhVF8JZFKT5VlPjPducjU3Q++IjPSFDAvyDDg==}
@@ -753,10 +776,10 @@ packages:
       '@mastra/core': ^0.10.2-alpha.0
       zod: ^3.0.0
 
-  '@mastra/memory@0.10.3':
-    resolution: {integrity: sha512-GEAF5mgajff2HPqvjkX8ZFZ98axU5zXhH2NuX2R8odjv21m6viuEAGIAZxQNqK5kspeqCefYdLfrCoq7arOMzA==}
+  '@mastra/memory@0.11.1':
+    resolution: {integrity: sha512-6ZMjJ5SmjKXnb4Ov3a+p/kqWr1390KiX0eWixhnWU89GmohIDfDrTG2EeKYkjEwR4WUmebhAQ7EubnyKjfyoxg==}
     peerDependencies:
-      '@mastra/core': '>=0.10.4-0 <0.11.0'
+      '@mastra/core': '>=0.10.9-0 <0.11.0-0'
 
   '@mastra/schema-compat@0.10.2':
     resolution: {integrity: sha512-QCPnD0Jd7NJgfVdvNkLPJhqSjyNcA+eaa16N+3kwa+wTBMb6eziWZC1aQNQ6o4T1JVPoo5unVVtL1pqiIgV+tA==}
@@ -1918,6 +1941,12 @@ packages:
     peerDependencies:
       typescript: '>=5'
 
+  '@solana/spl-token-group@0.0.7':
+    resolution: {integrity: sha512-V1N/iX7Cr7H0uazWUT2uk27TMqlqedpXHRqqAbVO2gvmJyT0E0ummMEAVQeXZ05ZhQ/xF39DLSdBp90XebWEug==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@solana/web3.js': ^1.95.3
+
   '@solana/spl-token-metadata@0.1.6':
     resolution: {integrity: sha512-7sMt1rsm/zQOQcUWllQX9mD2O6KhSAtY1hFR2hfFwgqfFWzSY9E9GDvFVNYUI1F0iQKcm6HmePU9QbKRXTEBiA==}
     engines: {node: '>=16'}
@@ -1929,6 +1958,12 @@ packages:
     engines: {node: '>=16'}
     peerDependencies:
       '@solana/web3.js': ^1.88.0
+
+  '@solana/spl-token@0.4.13':
+    resolution: {integrity: sha512-cite/pYWQZZVvLbg5lsodSovbetK/eA24gaR0eeUeMuBAMNrT8XFCwaygKy0N2WSg3gSyjjNpIeAGBAKZaY/1w==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@solana/web3.js': ^1.95.5
 
   '@solana/web3.js@1.98.2':
     resolution: {integrity: sha512-BqVwEG+TaG2yCkBMbD3C4hdpustR4FpuUFRPUmqRZYYlPI9Hg4XMWxHWOWRzHE9Lkc9NDjzXFX7lDXSgzC7R1A==}
@@ -5152,6 +5187,8 @@ snapshots:
 
   '@colors/colors@1.5.0': {}
 
+  '@coral-xyz/anchor-errors@0.31.1': {}
+
   '@coral-xyz/anchor@0.28.1-beta.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@coral-xyz/borsh': 0.28.0(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))
@@ -5175,7 +5212,34 @@ snapshots:
       - typescript
       - utf-8-validate
 
+  '@coral-xyz/anchor@0.31.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@coral-xyz/anchor-errors': 0.31.1
+      '@coral-xyz/borsh': 0.31.1(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))
+      '@noble/hashes': 1.8.0
+      '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      bn.js: 5.2.2
+      bs58: 4.0.1
+      buffer-layout: 1.2.2
+      camelcase: 6.3.0
+      cross-fetch: 3.2.0
+      eventemitter3: 4.0.7
+      pako: 2.1.0
+      superstruct: 0.15.5
+      toml: 3.0.0
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - typescript
+      - utf-8-validate
+
   '@coral-xyz/borsh@0.28.0(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))':
+    dependencies:
+      '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      bn.js: 5.2.2
+      buffer-layout: 1.2.2
+
+  '@coral-xyz/borsh@0.31.1(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))':
     dependencies:
       '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       bn.js: 5.2.2
@@ -5618,7 +5682,7 @@ snapshots:
       - supports-color
       - typescript
 
-  '@mastra/libsql@0.10.2(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+  '@mastra/libsql@0.11.0(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
     dependencies:
       '@libsql/client': 0.15.9(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@mastra/core': 0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67)
@@ -5646,7 +5710,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mastra/memory@0.10.3(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(react@19.1.0)':
+  '@mastra/memory@0.11.1(@mastra/core@0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67))(react@19.1.0)':
     dependencies:
       '@mastra/core': 0.10.5(openapi-types@12.1.3)(react@19.1.0)(zod@3.25.67)
       '@upstash/redis': 1.35.0
@@ -5658,6 +5722,7 @@ snapshots:
       redis: 4.7.1
       xxhash-wasm: 1.1.0
       zod: 3.25.67
+      zod-to-json-schema: 3.24.5(zod@3.25.67)
     transitivePeerDependencies:
       - pg-native
       - react
@@ -7243,6 +7308,14 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
+  '@solana/spl-token-group@0.0.7(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)':
+    dependencies:
+      '@solana/codecs': 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
+      '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - fastestsmallesttextencoderdecoder
+      - typescript
+
   '@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)':
     dependencies:
       '@solana/codecs': 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
@@ -7255,6 +7328,21 @@ snapshots:
     dependencies:
       '@solana/buffer-layout': 4.0.1
       '@solana/buffer-layout-utils': 0.2.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
+      '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      buffer: 6.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - fastestsmallesttextencoderdecoder
+      - typescript
+      - utf-8-validate
+
+  '@solana/spl-token@0.4.13(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@solana/buffer-layout': 4.0.1
+      '@solana/buffer-layout-utils': 0.2.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@solana/spl-token-group': 0.0.7(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
       '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
       '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       buffer: 6.0.3

@@ -294,7 +294,7 @@ Submissions will be evaluated based on:
 
 ### Prizes
 
-We’re awarding the **top 10 submissions**:
+We're awarding the **top 10 submissions**:
 
 - 🥇 1st: $1,000 USDC
 - 🥈 2nd: $750 USDC
@@ -331,7 +331,242 @@ All prizes are paid out directly to participants on [SuperTeam](https://supertea
 - **Announcement will be announced about one week later, stay tuned for our socials for exact date**
 - **Finalize your submission at [SuperTeam](https://earn.superteam.fun/agent-challenge)**
 
-### Don’t Miss Nosana Builder Challenge Updates
+### Don't Miss Nosana Builder Challenge Updates
 
 Good luck, builders! We can't wait to see the innovative AI agents you create for the Nosana ecosystem.
 **Happy Building!**
+
+# Solana Blockchain Monitor Agent
+
+A comprehensive Solana blockchain monitoring agent built with Mastra that can analyze Anchor programs, wallet addresses, and transactions.
+
+## Project Structure
+
+```
+agent-challenge/
+├── src/
+│   └── mastra/
+│       ├── agents/
+│       │   └── blockchain-monitor-agent/
+│       │       ├── solana-expert-agent.ts
+│       │       ├── blockchain-monitor-workflow.ts
+│       │       └── tools/
+│       │           ├── anchor-program-monitor.ts
+│       │           ├── account-analyzer.ts
+│       │           ├── transaction-monitor.ts
+│       │           ├── types.ts
+│       │           ├── utils.ts
+│       │           └── index.ts
+│       ├── config.ts
+│       └── index.ts
+├── package.json
+├── .env
+└── README.md
+```
+
+## Features
+
+### 🔍 **Anchor Program Analysis**
+- Automatically fetch program IDL from blockchain
+- List all instructions and their purposes
+- Show PDA account structures
+- Explain program capabilities and logic
+- Security analysis for smart contract vulnerabilities
+
+### 📊 **Wallet Address Analysis**
+- SOL balance and transaction history
+- All SPL tokens and their values
+- NFT collections owned
+- Staking accounts and rewards
+- Portfolio overview and risk assessment
+
+### 📈 **Transaction Analysis**
+- Transaction breakdown and flow
+- Program instructions executed
+- Account changes and balance shifts
+- Fee analysis and optimization tips
+
+### 🧠 **Memory & Context Awareness**
+- Remembers conversation context during sessions
+- Builds context over time for better insights
+- References previous analyses in the same conversation
+- Tracks patterns and trends within conversations
+- Provides more intelligent follow-up responses
+
+## Installation and Setup
+
+1. **Install dependencies:**
+```bash
+npm install
+```
+
+2. **Set up environment variables:**
+Create a `.env` file with your configuration:
+```env
+OPENAI_API_KEY=your_openai_api_key
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+```
+
+3. **Build the project:**
+```bash
+npm run build
+```
+
+## Running the Agent
+
+Start the Mastra server:
+
+```bash
+mastra dev --dir src/mastra
+```
+
+This will start the server and make your agent available at:
+- **Agent endpoint:** `http://localhost:8080/api/agents/solanaExpertAgent/generate`
+- **Playground:** `http://localhost:8080/playground`
+
+## Testing the Agent
+
+### Test Anchor Program Analysis
+
+```bash
+curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { 
+        "role": "user", 
+        "content": "Analyze this Anchor program: 9gJ7jZaAvUafgTFPoqkCwbuvC9kpZCPtHfHjMkQ66wu9" 
+      }
+    ],
+    "resourceId": "user_123",
+    "threadId": "conversation_456"
+  }'
+```
+
+### Test Memory Functionality
+
+Run the included test script:
+```bash
+node test-memory.js
+```
+
+Or test manually with resourceId and threadId:
+```bash
+# First request - analyze a program
+curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { 
+        "role": "user", 
+        "content": "Analyze this program: 9gJ7jZaAvUafgTFPoqkCwbuvC9kpZCPtHfHjMkQ66wu9" 
+      }
+    ],
+    "resourceId": "user_123",
+    "threadId": "conversation_456"
+  }'
+
+# Second request - reference previous analysis (should remember)
+curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { 
+        "role": "user", 
+        "content": "What was the name of the program I just analyzed?" 
+      }
+    ],
+    "resourceId": "user_123",
+    "threadId": "conversation_456"
+  }'
+```
+
+### Test Wallet Analysis
+
+```bash
+curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { 
+        "role": "user", 
+        "content": "Analyze this wallet: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU" 
+      }
+    ],
+    "resourceId": "user_123",
+    "threadId": "conversation_456"
+  }'
+```
+
+### Test Transaction Analysis
+
+```bash
+curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { 
+        "role": "user", 
+        "content": "Analyze this transaction: [transaction_signature]" 
+      }
+    ],
+    "resourceId": "user_123", 
+    "threadId": "conversation_456"
+  }'
+```
+
+## Expected Responses
+
+### Program Analysis Response
+The agent will provide:
+- 📊 Program metadata (name, version, complexity)
+- 🔧 Complete instruction list with actual instruction names
+- 🗃️ Complete PDA structure list with actual PDA names
+- ⚠️ All error codes with codes and messages
+- 🔒 Security analysis with specific recommendations
+
+### Wallet Analysis Response
+The agent will provide:
+- 💰 SOL balance and portfolio value
+- 🪙 SPL token holdings with values
+- 🖼️ NFT collections and metadata
+- 📈 Staking accounts and rewards
+- ⚠️ Risk assessment and security notes
+
+## Available Tools
+
+1. **anchorProgramMonitor** - Comprehensive Anchor program analysis
+2. **solanaAccountAnalyzer** - Wallet and account analysis
+3. **solanaTxMonitorTool** - Transaction monitoring and analysis
+
+## Usage Examples
+
+### Simple Requests
+- "What's in this wallet: [address]?"
+- "Explain this program: [program-id]"
+- "Show me this transaction: [signature]"
+
+### Advanced Analysis
+- "Give me a comprehensive analysis of program [program-id] with security recommendations"
+- "I want to interact with instruction 'create_smart_wallet' - walk me through it"
+- "Show me all PDA accounts for this program and help me fetch specific data"
+
+### Memory-Enhanced Queries
+- "Compare this program to the previous one I analyzed"
+- "Has this wallet address changed since my last check?"
+- "Show me patterns across all the transactions I've analyzed"
+- "What security issues have I found in similar programs?"
+
+## Development
+
+### Build
+```bash
+npm run build
+```
+
+### Development Server
+```bash
+mastra dev --dir src/mastra
+```
+
+The agent follows the Mastra framework patterns and provides comprehensive Solana blockchain analysis capabilities.

@@ -1,19 +1,11 @@
-import { Mastra } from '@mastra/core/mastra';
+import { Mastra } from '@mastra/core';
+import { solanaProgramAgent } from './agents/blockchain-monitor-agent/agent';
 import { PinoLogger } from '@mastra/loggers';
 
-// Import agents following the stock agent pattern
-import { solanaExpertAgent } from './agents/blockchain-monitor-agent/solana-expert-agent';
-import { blockchainMonitorWorkflow } from './agents/blockchain-monitor-agent/blockchain-monitor-workflow';
-
 export const mastra = new Mastra({
-  agents: {
-    solanaExpertAgent,
-  },
-  workflows: {
-    blockchainMonitorWorkflow,
-  },
+  agents: { solanaProgramAgent },
   logger: new PinoLogger({
-    name: 'Solana Blockchain Monitor',
+    name: 'Mastra',
     level: 'info',
   }),
   server: {

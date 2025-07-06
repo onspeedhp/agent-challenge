@@ -1,5 +1,4 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TokenMetadata } from './types';
 
 // Well-known program names for better identification
 export const getProgramName = (programId: string): string => {
@@ -15,89 +14,6 @@ export const getProgramName = (programId: string): string => {
   };
 
   return programNames[programId] || 'Unknown Program';
-};
-
-// Well-known token metadata cache for better performance
-const WELL_KNOWN_TOKENS: Record<string, TokenMetadata> = {
-  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: {
-    name: 'USD Coin',
-    symbol: 'USDC',
-    image:
-      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-  },
-  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: {
-    name: 'Tether USD',
-    symbol: 'USDT',
-    image:
-      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg',
-  },
-  So11111111111111111111111111111111111111112: {
-    name: 'Wrapped SOL',
-    symbol: 'SOL',
-    image:
-      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-  },
-  '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R': {
-    name: 'Raydium',
-    symbol: 'RAY',
-    image:
-      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png',
-  },
-  '7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj': {
-    name: 'Marinade staked SOL',
-    symbol: 'mSOL',
-    image:
-      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj/logo.png',
-  },
-  SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt: {
-    name: 'Serum',
-    symbol: 'SRM',
-    image:
-      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt/logo.png',
-  },
-  orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE: {
-    name: 'Orca',
-    symbol: 'ORCA',
-    image:
-      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE/logo.png',
-  },
-};
-
-// Helper function to fetch token metadata with fallback to known tokens
-export const fetchTokenMetadata = async (
-  connection: Connection,
-  mintAddress: string
-): Promise<TokenMetadata> => {
-  // Check if it's a well-known token first for better performance
-  if (WELL_KNOWN_TOKENS[mintAddress]) {
-    return WELL_KNOWN_TOKENS[mintAddress];
-  }
-
-  // For unknown tokens, try to get basic info from the mint account
-  try {
-    const mintPublicKey = new PublicKey(mintAddress);
-    const mintInfo = await connection.getParsedAccountInfo(mintPublicKey);
-
-    if (mintInfo.value?.data && 'parsed' in mintInfo.value.data) {
-      // Generate a basic token name based on mint address
-      const shortMint = mintAddress.substring(0, 8);
-
-      return {
-        name: `Token ${shortMint}`,
-        symbol: shortMint.toUpperCase(),
-        image: null,
-      };
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch mint info for ${mintAddress}:`, error);
-  }
-
-  // Fallback to defaults
-  return {
-    name: 'Unknown Token',
-    symbol: 'UNKNOWN',
-    image: null,
-  };
 };
 
 // Helper function to parse PDA seeds from IDL
@@ -160,17 +76,6 @@ export const validateAndParseIdl = (idlJson: string) => {
 
     if (!idl.metadata) {
       throw new Error('IDL missing metadata');
-    }
-
-    // Validate Anchor version
-    const spec = idl.metadata.spec;
-    if (spec) {
-      const [major, minor] = spec.split('.').map(Number);
-      if (major === 0 && minor < 30) {
-        throw new Error(
-          `Anchor version ${spec} not supported. This tool requires Anchor >= 0.30.0`
-        );
-      }
     }
 
     return idl;

@@ -1,0 +1,11 @@
+🚀 Just built a Solana AI agent that can:
+
+• Monitor any Anchor program in real-time
+• Fetch & decode account data automatically  
+• List all PDAs, instructions, errors & types
+• Search accounts by filters & pubkeys
+• Derive PDA addresses from seeds
+
+Built with @MastraAI & @NosanaAI - no more manual blockchain queries! 
+
+#Solana #AI #Blockchain #Anchor 

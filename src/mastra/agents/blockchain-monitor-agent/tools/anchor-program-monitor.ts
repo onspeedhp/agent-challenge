@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { Connection, PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
+import bs58 from 'bs58';
 import { solanaRpcUrl } from '../../../config';
 import { isValidSolanaAddress } from './utils';
 
@@ -23,10 +24,10 @@ const getFieldsForAccount = (idl: any, acc: any): any[] => {
   return fields || [];
 };
 
-// Program Summary Tool
+// 1. Program Summary Tool - Keep this as it's essential for overview
 export const analyzeProgramTool = createTool({
   id: 'analyze-program',
-  description: 'Get focused program summary with 5 key items per category',
+  description: 'Get focused program summary with key information',
   inputSchema: z.object({
     programId: z.string().describe('Solana program ID to analyze'),
     limit: z
@@ -36,10 +37,6 @@ export const analyzeProgramTool = createTool({
       .max(50)
       .optional()
       .describe('Maximum number of items to show per section (default 5)'),
-    mode: z
-      .enum(['brief', 'detailed'])
-      .optional()
-      .describe('Response verbosity'),
   }),
   execute: async ({ context }) => {
     const { programId, limit = 5 } = context;
@@ -59,25 +56,18 @@ export const analyzeProgramTool = createTool({
         );
       }
 
-      // Format program ID for display (first 4 + last 4 chars)
-      const shortProgramId = `${programId.slice(0, 4)}...${programId.slice(
-        -4
-      )}`;
-
-      // Return focused overview data (5 items max for quick scanning)
       return {
         name: idl.metadata?.name || 'Unknown Program',
         version: idl.metadata?.version || '1.0.0',
-        programId: shortProgramId,
+        programId: `${programId.slice(0, 4)}...${programId.slice(-4)}`,
         fullProgramId: programId,
         description: idl.metadata?.description || 'No description available',
         stats: {
           instructions: idl.instructions?.length || 0,
-          pdas: idl.accounts?.length || 0,
+          accounts: idl.accounts?.length || 0,
           errors: idl.errors?.length || 0,
           types: idl.types?.length || 0,
         },
-        // Show top 5 items for focused overview
         instructions: (idl.instructions || [])
           .slice(0, limit)
           .map((inst: any) => ({
@@ -89,7 +79,7 @@ export const analyzeProgramTool = createTool({
             accountCount: inst.accounts?.length || 0,
             argCount: inst.args?.length || 0,
           })),
-        pdas: (idl.accounts || []).slice(0, limit).map((acc: any) => {
+        accounts: (idl.accounts || []).slice(0, limit).map((acc: any) => {
           const fields = getFieldsForAccount(idl, acc);
           return {
             name: acc.name,
@@ -100,36 +90,9 @@ export const analyzeProgramTool = createTool({
             fieldCount: fields.length,
           };
         }),
-        errors: (idl.errors || []).slice(0, limit).map((err: any) => ({
-          code: err.code,
-          name: err.name,
-          msg: (err.msg || 'No message').split(' ').slice(0, 6).join(' '),
-        })),
-        types: (idl.types || []).slice(0, limit).map((type: any) => {
-          const base = {
-            name: type.name,
-            kind: type.type?.kind || 'struct',
-          } as any;
-
-          if (type.type?.kind === 'enum') {
-            base.variantCount = (type.type?.variants || []).length;
-            base.variantNames = (type.type?.variants || []).map(
-              (v: any) => v.name
-            );
-          }
-
-          if (type.type?.kind === 'alias') {
-            base.aliasFor = JSON.stringify(type.type?.alias ?? {});
-          }
-
-          base.fieldCount = type.type?.fields?.length || 0;
-          return base;
-        }),
         hasMore: {
           instructions: (idl.instructions?.length || 0) > limit,
-          pdas: (idl.accounts?.length || 0) > limit,
-          errors: (idl.errors?.length || 0) > limit,
-          types: (idl.types?.length || 0) > limit,
+          accounts: (idl.accounts?.length || 0) > limit,
         },
       };
     } catch (error) {
@@ -142,11 +105,10 @@ export const analyzeProgramTool = createTool({
   },
 });
 
-// Instruction Details Tool
+// 2. Instruction Details Tool - Keep this for understanding instructions
 export const getInstructionDetailsTool = createTool({
   id: 'get-instruction-details',
-  description:
-    'Get focused instruction details with essential account and parameter information',
+  description: 'Get detailed instruction information',
   inputSchema: z.object({
     programId: z.string().describe('Solana program ID'),
     instructionName: z.string().describe('Name of the instruction to analyze'),
@@ -174,75 +136,20 @@ export const getInstructionDetailsTool = createTool({
         throw new Error(`Instruction '${instructionName}' not found`);
       }
 
-      const formatAccountType = (account: any) => {
-        if (account.isSigner) return 'Signer';
-        if (account.pda) return 'PDA';
-
-        const name = account.name || '';
-        if (name.includes('authenticator')) return 'Authenticator';
-        if (name.includes('wallet')) return 'Wallet';
-        if (name.includes('program')) return 'Program';
-        if (name.includes('authority')) return 'Authority';
-        if (name.includes('token')) return 'Token';
-        if (name.includes('mint')) return 'Mint';
-        if (name.includes('config')) return 'Config';
-        if (name.includes('system')) return 'System';
-
-        return 'Account';
-      };
-
-      // Grouping containers
-      const groups = {
-        signers: [] as any[],
-        writable: [] as any[],
-        readonly: [] as any[],
-        optional: [] as any[],
-      };
-
-      const accountsDetailed = (instruction.accounts || []).map(
-        (acc: any, idx: number) => {
-          const accType = formatAccountType(acc);
-
-          // Grouping logic
-          if (acc.isSigner) groups.signers.push(acc.name);
-          if (acc.isOptional) groups.optional.push(acc.name);
-          if (acc.isMut) groups.writable.push(acc.name);
-          if (!acc.isMut) groups.readonly.push(acc.name);
-
-          // Extract constraints (Anchor >=0.30.0 uses relations & pda)
-          const constraints: Record<string, any> = {};
-          if (acc.pda?.seeds) constraints.seeds = acc.pda.seeds;
-          if (acc.relations) constraints.has_one = acc.relations;
-          if (acc.isOptional) constraints.optional = true;
-
-          return {
-            index: idx,
-            name: acc.name,
-            type: accType,
-            writable: acc.isMut ? 'Yes' : 'No',
-            signer: acc.isSigner ? 'Yes' : 'No',
-            optional: acc.isOptional ? 'Yes' : 'No',
-            constraints: Object.keys(constraints).length ? constraints : null,
-            description: (acc.docs?.join(' ') || 'No description')
-              .split(' ')
-              .slice(0, 8)
-              .join(' '),
-          };
-        }
-      );
-
-      // Show essential instruction details
       return {
         name: instruction.name,
         description: instruction.docs?.join(' ') || 'No description available',
-        accounts: accountsDetailed,
-        accountGroups: {
-          signers: groups.signers,
-          writable: groups.writable,
-          readonly: groups.readonly,
-          optional: groups.optional,
-        },
-        // Show all arguments with simplified format
+        accounts: (instruction.accounts || []).map((acc: any, idx: number) => ({
+          index: idx,
+          name: acc.name,
+          writable: acc.isMut ? 'Yes' : 'No',
+          signer: acc.isSigner ? 'Yes' : 'No',
+          optional: acc.isOptional ? 'Yes' : 'No',
+          description: (acc.docs?.join(' ') || 'No description')
+            .split(' ')
+            .slice(0, 8)
+            .join(' '),
+        })),
         args: (instruction.args || []).map((arg: any) => ({
           name: arg.name,
           type: typeof arg.type === 'string' ? arg.type : 'Object',
@@ -255,7 +162,6 @@ export const getInstructionDetailsTool = createTool({
           accounts: (instruction.accounts || []).length,
           args: (instruction.args || []).length,
         },
-        discriminator: instruction.discriminator || [],
       };
     } catch (error) {
       throw new Error(
@@ -267,16 +173,18 @@ export const getInstructionDetailsTool = createTool({
   },
 });
 
-// PDA Details Tool
-export const getPdaDetailsTool = createTool({
-  id: 'get-pda-details',
-  description: 'Get focused PDA structure with essential field information',
+// 3. Account Structure Details Tool - Keep this for understanding PDA structures
+export const getAccountDetailsTool = createTool({
+  id: 'get-account-details',
+  description: 'Get account structure details',
   inputSchema: z.object({
     programId: z.string().describe('Solana program ID'),
-    pdaName: z.string().describe('Name of the PDA structure to analyze'),
+    accountName: z
+      .string()
+      .describe('Name of the account structure to analyze'),
   }),
   execute: async ({ context }) => {
-    const { programId, pdaName } = context;
+    const { programId, accountName } = context;
 
     if (!isValidSolanaAddress(programId)) {
       throw new Error('Invalid Solana program ID format');
@@ -291,35 +199,32 @@ export const getPdaDetailsTool = createTool({
         throw new Error('No IDL found for this program');
       }
 
-      const pdaStruct = idl.accounts?.find((acc: any) => acc.name === pdaName);
-      if (!pdaStruct) {
-        throw new Error(`PDA structure '${pdaName}' not found`);
+      const accountStruct = idl.accounts?.find(
+        (acc: any) => acc.name === accountName
+      );
+      if (!accountStruct) {
+        throw new Error(`Account structure '${accountName}' not found`);
       }
 
-      let fields = (pdaStruct as any).type?.fields || [];
+      let fields = (accountStruct as any).type?.fields || [];
       if ((!fields || fields.length === 0) && idl.types) {
-        const typeDef = findTypeDef(idl, pdaStruct.name);
+        const typeDef = findTypeDef(idl, accountStruct.name);
         if (typeDef?.type?.fields) {
           fields = typeDef.type.fields;
         }
       }
 
-      // Show essential PDA structure details
-      const discriminatorArr = (pdaStruct as any).discriminator || [];
-      const discriminatorInfo = {
-        discriminator: discriminatorArr,
-        type: discriminatorArr.length === 8 ? 'implicit' : 'custom',
-      };
-
       return {
-        name: pdaStruct.name,
+        name: accountStruct.name,
         description:
-          (pdaStruct as any).docs?.join(' ') || 'No description available',
-        discriminator: discriminatorInfo,
-        // Show all fields with simplified format
+          (accountStruct as any).docs?.join(' ') || 'No description available',
+        discriminator: (accountStruct as any).discriminator || [],
         fields: (fields || []).map((field: any) => ({
           name: field.name,
-          type: typeof field.type === 'string' ? field.type : 'Object',
+          type:
+            typeof field.type === 'string'
+              ? field.type
+              : JSON.stringify(field.type),
           description: (field.docs?.join(' ') || 'No description')
             .split(' ')
             .slice(0, 6)
@@ -327,16 +232,12 @@ export const getPdaDetailsTool = createTool({
         })),
         info: {
           fieldCount: fields.length,
-          size: (pdaStruct as any).type?.size || 'Variable',
-          sizeBytes:
-            typeof (pdaStruct as any).type?.size === 'number'
-              ? (pdaStruct as any).type?.size
-              : null,
+          size: (accountStruct as any).type?.size || 'Variable',
         },
       };
     } catch (error) {
       throw new Error(
-        `Failed to get PDA details: ${
+        `Failed to get account details: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`
       );
@@ -344,25 +245,25 @@ export const getPdaDetailsTool = createTool({
   },
 });
 
-// Fetch PDA Data Tool
-export const fetchPdaDataTool = createTool({
-  id: 'fetch-pda-data',
+// 4. Fetch Single Account Data Tool - Standard program.account.fetch() pattern
+export const fetchAccountDataTool = createTool({
+  id: 'fetch-account-data',
   description:
-    'Fetch comprehensive PDA account data from the blockchain with complete structure information',
+    'Fetch single account data using program.account.fetch() pattern',
   inputSchema: z.object({
     programId: z.string().describe('Solana program ID'),
-    pdaName: z.string().describe('Name of the PDA structure'),
-    pdaAddress: z.string().describe('The actual PDA account address to fetch'),
+    accountName: z.string().describe('Name of the account structure'),
+    accountAddress: z.string().describe('The account address to fetch'),
   }),
   execute: async ({ context }) => {
-    const { programId, pdaName, pdaAddress } = context;
+    const { programId, accountName, accountAddress } = context;
 
     if (!isValidSolanaAddress(programId)) {
       throw new Error('Invalid Solana program ID format');
     }
 
-    if (!isValidSolanaAddress(pdaAddress)) {
-      throw new Error('Invalid PDA address format');
+    if (!isValidSolanaAddress(accountAddress)) {
+      throw new Error('Invalid account address format');
     }
 
     try {
@@ -374,85 +275,42 @@ export const fetchPdaDataTool = createTool({
         throw new Error('No IDL found for this program');
       }
 
-      const pdaStruct = idl.accounts?.find((acc: any) => acc.name === pdaName);
-      if (!pdaStruct) {
-        throw new Error(`PDA structure '${pdaName}' not found`);
-      }
+      const program = new anchor.Program(idl as anchor.Idl, { connection });
 
-      const accountInfo = await connection.getAccountInfo(
-        new PublicKey(pdaAddress)
+      // Find account structure in IDL (case-insensitive search)
+      const accountStruct = idl.accounts?.find(
+        (acc: any) => acc.name.toLowerCase() === accountName.toLowerCase()
       );
-
-      if (!accountInfo) {
-        return {
-          address: pdaAddress,
-          structName: pdaName,
-          exists: false,
-          message: 'Account does not exist on-chain',
-          structure: {
-            name: pdaStruct.name,
-            description: (pdaStruct as any).docs?.join(' ') || 'No description',
-            discriminator: (pdaStruct as any).discriminator || [],
-            fields: ((pdaStruct as any).type?.fields || []).map(
-              (field: any) => ({
-                name: field.name,
-                type:
-                  typeof field.type === 'string'
-                    ? field.type
-                    : JSON.stringify(field.type),
-                description: field.docs?.join(' ') || 'No description',
-              })
-            ),
-            expectedSize: (pdaStruct as any).type?.size || 'Variable',
-          },
-          parsing: {
-            status: 'raw',
-            recommendation: `Account not found on-chain yet. Once created you can parse using ${pdaStruct.name} deserializer`,
-          },
-        };
+      if (!accountStruct) {
+        const availableAccounts = (idl.accounts || []).map(
+          (acc: any) => acc.name
+        );
+        throw new Error(
+          `Account structure '${accountName}' not found in IDL. Available accounts: ${availableAccounts.join(
+            ', '
+          )}`
+        );
       }
 
-      // Comprehensive account data
+      // Convert account name to camelCase (Anchor convention) - use the actual IDL name
+      const camelCaseAccountName =
+        accountStruct.name.charAt(0).toLowerCase() +
+        accountStruct.name.slice(1);
+
+      // Fetch account data using Anchor's typed fetch
+      const accountData = await (program.account as any)[
+        camelCaseAccountName
+      ].fetch(new PublicKey(accountAddress));
+
       return {
-        address: pdaAddress,
-        structName: pdaName,
-        exists: true,
-        accountInfo: {
-          lamports: accountInfo.lamports,
-          owner: accountInfo.owner.toBase58(),
-          executable: accountInfo.executable,
-          rentEpoch: accountInfo.rentEpoch,
-          dataSize: accountInfo.data.length,
-        },
-        data: {
-          rawData: accountInfo.data.toString('base64'),
-          hexData: accountInfo.data.toString('hex'),
-          dataLength: accountInfo.data.length,
-        },
-        structure: {
-          name: pdaStruct.name,
-          description: (pdaStruct as any).docs?.join(' ') || 'No description',
-          discriminator: (pdaStruct as any).discriminator || [],
-          fields: ((pdaStruct as any).type?.fields || []).map((field: any) => ({
-            name: field.name,
-            type:
-              typeof field.type === 'string'
-                ? field.type
-                : JSON.stringify(field.type),
-            description: field.docs?.join(' ') || 'No description',
-          })),
-          expectedSize: (pdaStruct as any).type?.size || 'Variable',
-          actualSize: accountInfo.data.length,
-        },
-        parsing: {
-          status: 'raw',
-          recommendation: `Use ${pdaStruct.name} deserializer to parse structured data`,
-          fieldCount: ((pdaStruct as any).type?.fields || []).length,
-        },
+        address: accountAddress,
+        accountType: accountName,
+        data: accountData,
+        success: true,
       };
     } catch (error) {
       throw new Error(
-        `Failed to fetch PDA data: ${
+        `Failed to fetch account data: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`
       );
@@ -460,11 +318,199 @@ export const fetchPdaDataTool = createTool({
   },
 });
 
-// Derive PDA Address Tool
+// 5. Fetch All Accounts of Type Tool - Get all accounts of a specific structure
+export const fetchAllAccountsTool = createTool({
+  id: 'fetch-all-accounts',
+  description:
+    'Fetch all accounts of a specific type using program.account.all()',
+  inputSchema: z.object({
+    programId: z.string().describe('Solana program ID'),
+    accountName: z.string().describe('Name of the account structure'),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(100)
+      .optional()
+      .describe('Maximum number of accounts to fetch (default 50)'),
+  }),
+  execute: async ({ context }) => {
+    const { programId, accountName, limit = 50 } = context;
+
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
+
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      const program = new anchor.Program(idl as anchor.Idl, { connection });
+
+      // Find account structure in IDL (case-insensitive search)
+      const accountStruct = idl.accounts?.find(
+        (acc: any) => acc.name.toLowerCase() === accountName.toLowerCase()
+      );
+      if (!accountStruct) {
+        const availableAccounts = (idl.accounts || []).map(
+          (acc: any) => acc.name
+        );
+        throw new Error(
+          `Account structure '${accountName}' not found in IDL. Available accounts: ${availableAccounts.join(
+            ', '
+          )}`
+        );
+      }
+
+      // Convert account name to camelCase (Anchor convention) - use the actual IDL name
+      const camelCaseAccountName =
+        accountStruct.name.charAt(0).toLowerCase() +
+        accountStruct.name.slice(1);
+
+      // Fetch all accounts of this type
+      const accounts = await (program.account as any)[
+        camelCaseAccountName
+      ].all();
+
+      return {
+        accountType: accountName,
+        totalFound: accounts.length,
+        accounts: accounts.slice(0, limit).map((acc: any) => ({
+          address: acc.publicKey.toBase58(),
+          data: acc.account,
+        })),
+        hasMore: accounts.length > limit,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch all accounts: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  },
+});
+
+// 6. Fetch Accounts by Filter Tool - Filter accounts based on field values
+export const fetchAccountsByFilterTool = createTool({
+  id: 'fetch-accounts-by-filter',
+  description:
+    'Fetch accounts filtered by specific field values using memcmp filters',
+  inputSchema: z.object({
+    programId: z.string().describe('Solana program ID'),
+    accountName: z.string().describe('Name of the account structure'),
+    filters: z
+      .array(
+        z.object({
+          field: z.string().describe('Field name to filter by'),
+          value: z
+            .union([z.string(), z.number(), z.boolean()])
+            .describe('Value to match'),
+        })
+      )
+      .describe('Array of field filters'),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(100)
+      .optional()
+      .describe('Maximum number of accounts to fetch (default 20)'),
+  }),
+  execute: async ({ context }) => {
+    const { programId, accountName, filters, limit = 20 } = context;
+
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
+
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      const program = new anchor.Program(idl as anchor.Idl, { connection });
+
+      // Find account structure in IDL (case-insensitive search)
+      const accountStruct = idl.accounts?.find(
+        (acc: any) => acc.name.toLowerCase() === accountName.toLowerCase()
+      );
+      if (!accountStruct) {
+        const availableAccounts = (idl.accounts || []).map(
+          (acc: any) => acc.name
+        );
+        throw new Error(
+          `Account structure '${accountName}' not found in IDL. Available accounts: ${availableAccounts.join(
+            ', '
+          )}`
+        );
+      }
+
+      // Convert account name to camelCase (Anchor convention) - use the actual IDL name
+      const camelCaseAccountName =
+        accountStruct.name.charAt(0).toLowerCase() +
+        accountStruct.name.slice(1);
+
+      // Get all accounts first, then filter (simple approach)
+      const allAccounts = await (program.account as any)[
+        camelCaseAccountName
+      ].all();
+
+      // Apply filters
+      const filteredAccounts = allAccounts.filter((acc: any) => {
+        return filters.every((filter) => {
+          const fieldValue = acc.account[filter.field];
+          if (fieldValue === undefined) return false;
+
+          // Handle different value types
+          if (typeof fieldValue === 'object' && fieldValue !== null) {
+            // For PublicKey objects
+            if (fieldValue.toBase58) {
+              return fieldValue.toBase58() === filter.value;
+            }
+            // For BN objects
+            if (fieldValue.toString) {
+              return fieldValue.toString() === filter.value.toString();
+            }
+          }
+
+          return fieldValue === filter.value;
+        });
+      });
+
+      return {
+        accountType: accountName,
+        filters: filters,
+        totalMatched: filteredAccounts.length,
+        accounts: filteredAccounts.slice(0, limit).map((acc: any) => ({
+          address: acc.publicKey.toBase58(),
+          data: acc.account,
+        })),
+        hasMore: filteredAccounts.length > limit,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch filtered accounts: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  },
+});
+
+// 7. Derive PDA Address Tool - Keep this as it's very useful
 export const derivePdaAddressTool = createTool({
   id: 'derive-pda-address',
-  description:
-    'Derive PDA address from seeds with comprehensive details and validation',
+  description: 'Derive PDA address from seeds',
   inputSchema: z.object({
     programId: z.string().describe('Solana program ID'),
     seeds: z
@@ -487,8 +533,6 @@ export const derivePdaAddressTool = createTool({
       const processedSeeds = seeds.map((seed, index) => {
         let seedBuffer: Buffer;
         let seedType: string;
-        let originalValue = seed;
-        let ambiguous = false;
 
         if (seed.startsWith('0x')) {
           // Hexadecimal seed
@@ -502,68 +546,42 @@ export const derivePdaAddressTool = createTool({
           // UTF-8 string seed
           seedBuffer = Buffer.from(seed, 'utf8');
           seedType = 'String';
-          // Detect non printable chars which may indicate invalid utf8 / hex
-          ambiguous = /[^\x20-\x7E]+/.test(seed);
         }
 
         return {
           index,
-          originalValue,
+          originalValue: seed,
           type: seedType,
           buffer: seedBuffer,
           length: seedBuffer.length,
-          ambiguous,
         };
       });
 
       const seedBuffers = processedSeeds.map((s) => s.buffer);
-
       const [derivedPda, bump] = PublicKey.findProgramAddressSync(
         seedBuffers,
         new PublicKey(programId)
       );
 
       // Check if account exists on-chain
-      let accountExists = false;
-      let accountInfo = null;
-      try {
-        accountInfo = await connection.getAccountInfo(derivedPda);
-        accountExists = accountInfo !== null;
-      } catch (error) {
-        // Ignore errors for account existence check
-      }
+      const accountInfo = await connection.getAccountInfo(derivedPda);
 
       return {
         success: true,
-        derivation: {
-          address: derivedPda.toBase58(),
-          bump,
-          programId: programId,
-        },
+        address: derivedPda.toBase58(),
+        bump,
+        programId: programId,
         seeds: processedSeeds.map((s) => ({
           index: s.index,
           value: s.originalValue,
           type: s.type,
           length: s.length,
-          ambiguous: s.ambiguous,
         })),
-        validation: {
-          seedCount: seeds.length,
-          totalSeedLength: processedSeeds.reduce((sum, s) => sum + s.length, 0),
-          bumpSeed: bump,
-          validAddress: true,
-        },
         onChainStatus: {
-          exists: accountExists,
+          exists: accountInfo !== null,
           lamports: accountInfo?.lamports || 0,
           dataSize: accountInfo?.data?.length || 0,
           owner: accountInfo?.owner?.toBase58() || 'No owner',
-        },
-        usage: {
-          canBeUsed: true,
-          recommendation: accountExists
-            ? 'Account exists - can be used for interactions'
-            : 'Account does not exist - needs to be initialized first',
         },
       };
     } catch (error) {
@@ -576,320 +594,667 @@ export const derivePdaAddressTool = createTool({
   },
 });
 
-// Note: Re-adding listAllInstructionsTool & listAllPdasTool for compatibility
+// 8. Search Accounts by Public Key Field Tool - Find accounts that reference a specific public key
+export const searchAccountsByPubkeyTool = createTool({
+  id: 'search-accounts-by-pubkey',
+  description:
+    'Search for accounts that contain a specific public key in any field',
+  inputSchema: z.object({
+    programId: z.string().describe('Solana program ID'),
+    accountName: z.string().describe('Name of the account structure'),
+    targetPubkey: z.string().describe('Public key to search for'),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(50)
+      .optional()
+      .describe('Maximum number of accounts to return (default 20)'),
+  }),
+  execute: async ({ context }) => {
+    const { programId, accountName, targetPubkey, limit = 20 } = context;
+
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
+
+    if (!isValidSolanaAddress(targetPubkey)) {
+      throw new Error('Invalid target public key format');
+    }
+
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      const program = new anchor.Program(idl as anchor.Idl, { connection });
+
+      // Find account structure in IDL (case-insensitive search)
+      const accountStruct = idl.accounts?.find(
+        (acc: any) => acc.name.toLowerCase() === accountName.toLowerCase()
+      );
+      if (!accountStruct) {
+        const availableAccounts = (idl.accounts || []).map(
+          (acc: any) => acc.name
+        );
+        throw new Error(
+          `Account structure '${accountName}' not found in IDL. Available accounts: ${availableAccounts.join(
+            ', '
+          )}`
+        );
+      }
+
+      // Convert account name to camelCase (Anchor convention) - use the actual IDL name
+      const camelCaseAccountName =
+        accountStruct.name.charAt(0).toLowerCase() +
+        accountStruct.name.slice(1);
+
+      // Get all accounts and search for the target pubkey
+      const allAccounts = await (program.account as any)[
+        camelCaseAccountName
+      ].all();
+
+      const matchingAccounts = allAccounts.filter((acc: any) => {
+        // Recursively search for the target pubkey in all fields
+        const searchInObject = (obj: any): boolean => {
+          if (obj === null || obj === undefined) return false;
+
+          // Check if it's a PublicKey object
+          if (obj.toBase58 && typeof obj.toBase58 === 'function') {
+            return obj.toBase58() === targetPubkey;
+          }
+
+          // Check if it's a string that matches the pubkey
+          if (typeof obj === 'string' && obj === targetPubkey) {
+            return true;
+          }
+
+          // If it's an object, search recursively
+          if (typeof obj === 'object') {
+            return Object.values(obj).some(searchInObject);
+          }
+
+          return false;
+        };
+
+        return searchInObject(acc.account);
+      });
+
+      return {
+        accountType: accountName,
+        targetPubkey,
+        totalMatched: matchingAccounts.length,
+        accounts: matchingAccounts.slice(0, limit).map((acc: any) => ({
+          address: acc.publicKey.toBase58(),
+          data: acc.account,
+        })),
+        hasMore: matchingAccounts.length > limit,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to search accounts by pubkey: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  },
+});
+
+// 9. List All Instructions Tool
 export const listAllInstructionsTool = createTool({
   id: 'list-all-instructions',
-  description: 'Return details for every instruction (compatibility stub)',
-  inputSchema: z.object({ programId: z.string() }),
-  execute: async ({ context }) => {
-    const { programId } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid');
-    const idl = await anchor.Program.fetchIdl(new PublicKey(programId), { connection });
-    if (!idl) throw new Error('No IDL');
-    return { instructionCount: idl.instructions?.length || 0, instructions: idl.instructions };
-  },
-});
-
-export const listAllPdasTool = createTool({
-  id: 'list-all-pdas',
-  description: 'Return details for every PDA (compatibility stub)',
-  inputSchema: z.object({ programId: z.string() }),
-  execute: async ({ context }) => {
-    const { programId } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid');
-    const idl = await anchor.Program.fetchIdl(new PublicKey(programId), { connection });
-    if (!idl) throw new Error('No IDL');
-    const pdas = (idl.accounts || []).map((a: any) => ({ name: a.name, discriminator: a.discriminator }));
-    return { pdaCount: pdas.length, pdas };
-  },
-});
-
-/* =============================================================
-   ADVANCED MONITORING TOOLS – program stats, logs, decoders, etc.
-   Each tool exposes a narrow yet useful capability. Implemented
-   with best-effort heuristics (fast queries, limited data sizes)
-   to remain lightweight while still informative. Users can chain
-   them for deeper insights.
-   ============================================================= */
-
-// Helper to fetch recent signatures (limited for performance)
-const fetchRecentSignatures = async (
-  address: PublicKey,
-  limit = 100
-): Promise<anchor.web3.ConfirmedSignatureInfo[]> => {
-  return connection.getSignaturesForAddress(address, { limit });
-};
-
-// 1) PROGRAM STATS TOOL ------------------------------------------------------
-export const programStatsTool = createTool({
-  id: 'program-stats',
-  description: 'Quick usage & health statistics for an Anchor program',
+  description: 'Get detailed information about all program instructions',
   inputSchema: z.object({
-    programId: z.string(),
-    signatureLimit: z.number().int().positive().max(1000).optional(),
+    programId: z.string().describe('Solana program ID'),
   }),
   execute: async ({ context }) => {
-    const { programId, signatureLimit = 250 } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
+    const { programId } = context;
 
-    const sigs = await fetchRecentSignatures(new PublicKey(programId), signatureLimit);
-    const dayAgo = Date.now() / 1000 - 86400;
-    const weekAgo = Date.now() / 1000 - 86400 * 7;
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
 
-    const dayTx = sigs.filter((s) => s.blockTime && s.blockTime >= dayAgo);
-    const weekTx = sigs.filter((s) => s.blockTime && s.blockTime >= weekAgo);
-
-    return {
-      totalFetched: sigs.length,
-      lastSignatureTime: sigs[0]?.blockTime ?? null,
-      tx24h: dayTx.length,
-      tx7d: weekTx.length,
-      // Simple fee aggregate (lamports) – requires fetching each tx meta
-      feesLamports: await (async () => {
-        let total = 0;
-        for (const sig of dayTx.slice(0, 20)) {
-          const tx = await connection.getTransaction(sig.signature, { commitment: 'confirmed' });
-          total += tx?.meta?.fee ?? 0;
-        }
-        return total;
-      })(),
-    };
-  },
-});
-
-// 2) RECENT LOGS TOOL --------------------------------------------------------
-export const recentLogsTool = createTool({
-  id: 'recent-logs',
-  description: 'Fetch recent log messages emitted by the program',
-  inputSchema: z.object({
-    programId: z.string(),
-    limit: z.number().int().positive().max(20).default(5),
-  }),
-  execute: async ({ context }) => {
-    const { programId, limit } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
-
-    const sigs = await fetchRecentSignatures(new PublicKey(programId), limit);
-    const logs = [] as any[];
-    for (const sig of sigs) {
-      const tx = await connection.getTransaction(sig.signature, {
-        commitment: 'confirmed',
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
       });
-      if (tx?.meta?.logMessages) {
-        logs.push({ signature: sig.signature, slot: sig.slot, logMessages: tx.meta.logMessages });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
       }
+
+      const instructions = (idl.instructions || []).map((inst: any) => ({
+        name: inst.name,
+        description: inst.docs?.join(' ') || 'No description available',
+        accounts: (inst.accounts || []).map((acc: any) => ({
+          name: acc.name,
+          writable: acc.isMut ? 'Yes' : 'No',
+          signer: acc.isSigner ? 'Yes' : 'No',
+          optional: acc.isOptional ? 'Yes' : 'No',
+          description: (acc.docs?.join(' ') || 'No description')
+            .split(' ')
+            .slice(0, 8)
+            .join(' '),
+        })),
+        args: (inst.args || []).map((arg: any) => ({
+          name: arg.name,
+          type:
+            typeof arg.type === 'string' ? arg.type : JSON.stringify(arg.type),
+          description: (arg.docs?.join(' ') || 'No description')
+            .split(' ')
+            .slice(0, 6)
+            .join(' '),
+        })),
+        counts: {
+          accounts: (inst.accounts || []).length,
+          args: (inst.args || []).length,
+        },
+      }));
+
+      return {
+        instructionCount: instructions.length,
+        instructions,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to list all instructions: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
     }
-    return { count: logs.length, logs };
   },
 });
 
-// 3) TRANSACTION DECODER TOOL ------------------------------------------------
-export const transactionDecoderTool = createTool({
-  id: 'transaction-decoder',
-  description: 'Decode a program transaction signature into Anchor instructions',
+// 10. List All Accounts Tool
+export const listAllAccountsTool = createTool({
+  id: 'list-all-accounts',
+  description: 'Get detailed information about all program account structures',
   inputSchema: z.object({
-    programId: z.string(),
-    signature: z.string(),
+    programId: z.string().describe('Solana program ID'),
+    includeFields: z
+      .boolean()
+      .optional()
+      .describe('Include field details (default false)'),
   }),
   execute: async ({ context }) => {
-    const { programId, signature } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
+    const { programId, includeFields = false } = context;
 
-    const idl = await anchor.Program.fetchIdl(new PublicKey(programId), { connection });
-    if (!idl) throw new Error('No IDL');
-    const program = new anchor.Program(idl as anchor.Idl, { connection });
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
 
-    const tx = await connection.getTransaction(signature, { commitment: 'confirmed' });
-    if (!tx) throw new Error('Transaction not found');
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
 
-    const decoded = [] as any[];
-    tx.transaction.message.instructions.forEach((ix, idx) => {
-      // Try decode only if belongs to programId
-      const ixProgramId: PublicKey = (ix as any).programId
-        ? (ix as any).programId
-        : tx.transaction.message.accountKeys[ix.programIdIndex];
-      if (ixProgramId.equals(new PublicKey(programId))) {
-        try {
-          const data = Buffer.from(ix.data, 'base64');
-          const ixDecoded = (program as any).coder.instruction.decode(data, 'hex');
-          decoded.push({ index: idx, ...ixDecoded });
-        } catch {
-          decoded.push({ index: idx, raw: ix.data });
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      const accounts = (idl.accounts || []).map((acc: any) => {
+        let fields = (acc as any).type?.fields || [];
+        if ((!fields || fields.length === 0) && idl.types) {
+          const typeDef = findTypeDef(idl, acc.name);
+          if (typeDef?.type?.fields) {
+            fields = typeDef.type.fields;
+          }
         }
-      }
-    });
-    return { slot: tx.slot, computeUnits: tx.meta?.computeUnitsConsumed, instructions: decoded };
-  },
-});
 
-// 4) SIMULATE INSTRUCTION TOOL ----------------------------------------------
-export const simulateInstructionTool = createTool({
-  id: 'simulate-instruction',
-  description: 'Dry-run (simulate) an instruction without sending a tx',
-  inputSchema: z.object({
-    programId: z.string(),
-    instructionName: z.string(),
-    accounts: z.record(z.string(), z.string()),
-    args: z.any().optional(),
-  }),
-  execute: async ({ context }) => {
-    const { programId, instructionName, accounts, args } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
+        const baseInfo = {
+          name: acc.name,
+          description:
+            (acc as any).docs?.join(' ') || 'No description available',
+          discriminator: (acc as any).discriminator || [],
+          fieldCount: fields.length,
+          size: (acc as any).type?.size || 'Variable',
+        } as any;
 
-    const idl = await anchor.Program.fetchIdl(new PublicKey(programId), { connection });
-    if (!idl) throw new Error('No IDL');
-    const program = new anchor.Program(idl as anchor.Idl, { connection });
+        if (includeFields) {
+          baseInfo.fields = (fields || []).map((field: any) => ({
+            name: field.name,
+            type:
+              typeof field.type === 'string'
+                ? field.type
+                : JSON.stringify(field.type),
+            description: (field.docs?.join(' ') || 'No description')
+              .split(' ')
+              .slice(0, 6)
+              .join(' '),
+          }));
+        }
 
-    if (typeof (program.methods as any)[instructionName] !== 'function') {
-      throw new Error('Instruction not found in IDL');
+        return baseInfo;
+      });
+
+      return {
+        accountCount: accounts.length,
+        accounts,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to list all accounts: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
     }
-
-    const method = (program.methods as any)[instructionName](...(Array.isArray(args) ? args : args ? [args] : []));
-    const ixBuilder = method.accounts(accounts);
-    const { logs, unitsConsumed } = await ixBuilder.simulate();
-
-    return { logs, unitsConsumed };
   },
 });
 
-// 5) ACCOUNT DIFF TOOL -------------------------------------------------------
-export const accountDiffTool = createTool({
-  id: 'account-diff',
-  description: 'Compare PDA data between two slots and highlight differences',
+// 11. List All Errors Tool
+export const listAllErrorsTool = createTool({
+  id: 'list-all-errors',
+  description: 'Get detailed information about all program errors',
   inputSchema: z.object({
-    address: z.string(),
-    beforeSlot: z.number().optional(),
-    afterSlot: z.number().optional(),
+    programId: z.string().describe('Solana program ID'),
   }),
-  execute: async ({ context }) => {
-    const { address, beforeSlot, afterSlot } = context;
-    if (!isValidSolanaAddress(address)) throw new Error('Invalid address');
-
-    const fetchData = async (slot?: number) => {
-      return connection.getAccountInfo(new PublicKey(address), { commitment: 'confirmed', dataSlice: { offset: 0, length: 0 }, minContextSlot: slot });
-    };
-
-    const beforeInfo = await fetchData(beforeSlot);
-    const afterInfo = await fetchData(afterSlot);
-    return {
-      lamportsChanged: (afterInfo?.lamports ?? 0) - (beforeInfo?.lamports ?? 0),
-      existsBefore: !!beforeInfo, existsAfter: !!afterInfo,
-    };
-  },
-});
-
-// 6) HISTORY SCANNER TOOL ----------------------------------------------------
-export const historyScannerTool = createTool({
-  id: 'history-scanner',
-  description: 'Scan program history for instruction or PDA changes between slots',
-  inputSchema: z.object({
-    programId: z.string(),
-    fromSlot: z.number(),
-    toSlot: z.number().optional(),
-  }),
-  execute: async ({ context }) => {
-    const { programId, fromSlot, toSlot } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
-    const until = toSlot ?? (await connection.getSlot('confirmed'));
-    const logs = await (connection as any).getLogs(new PublicKey(programId), { startSlot: fromSlot, endSlot: until, commitment: 'confirmed' });
-    return { total: logs.length, logs: logs.slice(0, 100) }; // cap output
-  },
-});
-
-// 7) ERROR EXPLAINER TOOL ----------------------------------------------------
-export const errorExplainerTool = createTool({
-  id: 'error-explainer',
-  description: 'Translate Anchor error code to human message',
-  inputSchema: z.object({
-    programId: z.string(),
-    code: z.number(),
-  }),
-  execute: async ({ context }) => {
-    const { programId, code } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
-
-    const idl = await anchor.Program.fetchIdl(new PublicKey(programId), { connection });
-    if (!idl) throw new Error('No IDL');
-    const err = (idl.errors || []).find((e: any) => e.code === code);
-    return err ? err : { message: 'Unknown code' };
-  },
-});
-
-// 8) COMPUTE ESTIMATOR TOOL --------------------------------------------------
-export const computeEstimatorTool = createTool({
-  id: 'compute-estimator',
-  description: 'Rough compute-unit estimate by simulating instruction N times',
-  inputSchema: z.object({
-    programId: z.string(),
-    instructionName: z.string(),
-    iterations: z.number().int().positive().max(5).default(3),
-    accounts: z.record(z.string(), z.string()),
-    args: z.any().optional(),
-  }),
-  execute: async ({ context }) => {
-    const { programId, instructionName, iterations, accounts, args } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
-
-    const idl = await anchor.Program.fetchIdl(new PublicKey(programId), { connection });
-    if (!idl) throw new Error('No IDL');
-    const program = new anchor.Program(idl as anchor.Idl, { connection });
-
-    const methodFactory = (program.methods as any)[instructionName];
-    if (!methodFactory) throw new Error('Instruction not found');
-
-    let total = 0;
-    for (let i = 0; i < iterations; i++) {
-      const sim = await methodFactory(...(Array.isArray(args) ? args : args ? [args] : [])).accounts(accounts).simulate();
-      total += sim.unitsConsumed ?? 0;
-    }
-    return { averageCU: Math.round(total / iterations) };
-  },
-});
-
-// 9) UPGRADE HISTORY TOOL ----------------------------------------------------
-export const upgradeHistoryTool = createTool({
-  id: 'upgrade-history',
-  description: 'List past deployments of an upgradable program',
-  inputSchema: z.object({ programId: z.string() }),
   execute: async ({ context }) => {
     const { programId } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
 
-    // ProgramData PDA is seed [programId]
-    const programPubkey = new PublicKey(programId);
-    const BPF_LOADER_UPGRADEABLE_PROGRAM_ID =
-      (anchor.web3 as any).BPF_LOADER_UPGRADEABLE_PROGRAM_ID ||
-      anchor.web3.BPF_LOADER_DEPRECATED_PROGRAM_ID;
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
 
-    const programDataAddress = anchor.web3.PublicKey.findProgramAddressSync(
-      [programPubkey.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID
-    )[0];
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
 
-    const acctInfo = await connection.getAccountInfo(programDataAddress);
-    const currentSlot = await connection.getSlot();
-    return {
-      programDataAddress: programDataAddress.toBase58(),
-      size: acctInfo?.data.length ?? 0,
-      fetchedSlot: currentSlot,
-    };
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      const errors = (idl.errors || []).map((err: any) => ({
+        code: err.code,
+        name: err.name,
+        msg: err.msg || 'No message',
+        description: (err as any).docs?.join(' ') || 'No description available',
+      }));
+
+      return {
+        errorCount: errors.length,
+        errors,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to list all errors: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
   },
 });
 
-// 10) WEBHOOK ALERT TOOL -----------------------------------------------------
-export const webhookAlertTool = createTool({
-  id: 'webhook-alert',
-  description: 'Register a simple webhook rule (NO persistence, demo only)',
+// 12. List All Types Tool
+export const listAllTypesTool = createTool({
+  id: 'list-all-types',
+  description: 'Get detailed information about all program types and structs',
   inputSchema: z.object({
-    programId: z.string(),
-    rule: z.enum(['newTx', 'error']),
-    webhookUrl: z.string().url(),
+    programId: z.string().describe('Solana program ID'),
+    includeFields: z
+      .boolean()
+      .optional()
+      .describe('Include field details (default false)'),
   }),
   execute: async ({ context }) => {
-    const { programId, rule, webhookUrl } = context;
-    if (!isValidSolanaAddress(programId)) throw new Error('Invalid program');
+    const { programId, includeFields = false } = context;
 
-    // For demo purposes we just return the rule and pretend success.
-    return { status: 'registered', rule, webhookUrl };
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
+
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      const types = (idl.types || []).map((type: any) => {
+        const baseInfo = {
+          name: type.name,
+          kind: type.type?.kind || 'struct',
+          description: type.docs?.join(' ') || 'No description available',
+        } as any;
+
+        if (type.type?.kind === 'enum') {
+          baseInfo.variantCount = (type.type?.variants || []).length;
+          baseInfo.variantNames = (type.type?.variants || []).map(
+            (v: any) => v.name
+          );
+
+          if (includeFields) {
+            baseInfo.variants = (type.type?.variants || []).map((v: any) => ({
+              name: v.name,
+              fields: v.fields || null,
+            }));
+          }
+        }
+
+        if ((type.type as any)?.kind === 'alias') {
+          baseInfo.aliasFor = JSON.stringify((type.type as any)?.alias ?? {});
+        }
+
+        if ((type.type as any)?.fields) {
+          baseInfo.fieldCount = (type.type as any).fields.length;
+
+          if (includeFields) {
+            baseInfo.fields = (type.type as any).fields.map((field: any) => ({
+              name: field.name,
+              type:
+                typeof field.type === 'string'
+                  ? field.type
+                  : JSON.stringify(field.type),
+              description: (field.docs?.join(' ') || 'No description')
+                .split(' ')
+                .slice(0, 6)
+                .join(' '),
+            }));
+          }
+        }
+
+        return baseInfo;
+      });
+
+      return {
+        typeCount: types.length,
+        types,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to list all types: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  },
+});
+
+// 14. Get Error Details Tool - Details of a specific error
+export const getErrorDetailsTool = createTool({
+  id: 'get-error-details',
+  description: 'Get detailed information about a specific program error',
+  inputSchema: z.object({
+    programId: z.string().describe('Solana program ID'),
+    errorIdentifier: z
+      .union([
+        z.string().describe('Error name'),
+        z.number().describe('Error code'),
+      ])
+      .describe('Error name or code to look up'),
+  }),
+  execute: async ({ context }) => {
+    const { programId, errorIdentifier } = context;
+
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
+
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      // Find error by name or code
+      const error = (idl.errors || []).find((err: any) => {
+        if (typeof errorIdentifier === 'string') {
+          return err.name === errorIdentifier;
+        } else {
+          return err.code === errorIdentifier;
+        }
+      });
+
+      if (!error) {
+        return {
+          found: false,
+          message: `Error '${errorIdentifier}' not found in program`,
+          availableErrors: (idl.errors || []).map((err: any) => ({
+            name: err.name,
+            code: err.code,
+          })),
+        };
+      }
+
+      return {
+        found: true,
+        error: {
+          name: error.name,
+          code: error.code,
+          msg: error.msg || 'No message',
+          description:
+            (error as any).docs?.join(' ') || 'No description available',
+        },
+        usage: {
+          anchor: `Err(ErrorCode::${error.name})`,
+          code: `Error code: ${error.code}`,
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get error details: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  },
+});
+
+// 13. Get Program Accounts By Type Tool - List all existing accounts of a specific type
+export const getProgramAccountsByTypeTool = createTool({
+  id: 'get-program-accounts-by-type',
+  description:
+    'List all existing accounts of a specific type using Anchor program.account.all() method',
+  inputSchema: z.object({
+    programId: z.string().describe('Solana program ID'),
+    accountName: z.string().describe('Name of the account type to search for'),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(100)
+      .optional()
+      .describe('Maximum number of accounts to return (default 50)'),
+  }),
+  execute: async ({ context }) => {
+    const { programId, accountName, limit = 50 } = context;
+
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
+
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      // Find account structure in IDL (case-insensitive search)
+      const accountStruct = idl.accounts?.find(
+        (acc: any) => acc.name.toLowerCase() === accountName.toLowerCase()
+      );
+      if (!accountStruct) {
+        const availableAccounts = (idl.accounts || []).map(
+          (acc: any) => acc.name
+        );
+        throw new Error(
+          `Account structure '${accountName}' not found in IDL. Available accounts: ${availableAccounts.join(
+            ', '
+          )}`
+        );
+      }
+
+      // Get the discriminator for reference (not used in .all() method)
+      const discriminator = (accountStruct as any).discriminator || [];
+
+      // Use Anchor's built-in method to get all accounts (simpler and more reliable)
+      const program = new anchor.Program(idl as anchor.Idl, { connection });
+      const camelCaseAccountName =
+        accountStruct.name.charAt(0).toLowerCase() +
+        accountStruct.name.slice(1);
+
+      // Fetch all accounts using Anchor's .all() method
+      const accounts = await (program.account as any)[camelCaseAccountName].all();
+
+      // Handle case where no accounts exist
+      if (!accounts || accounts.length === 0) {
+        return {
+          accountType: accountStruct.name,
+          discriminator: discriminator,
+          totalFound: 0,
+          accounts: [],
+          hasMore: false,
+          searchMethod: 'Anchor program.account.all() method',
+          message: `No ${accountStruct.name} accounts found for this program.`,
+        };
+      }
+
+      const decodedAccounts = accounts.slice(0, limit).map((account: any) => ({
+        address: account.publicKey.toBase58(),
+        data: account.account,
+        lamports: 0, // .all() doesn't provide lamports info
+        owner: programId,
+        executable: false,
+        rentEpoch: 0,
+      }))
+
+      return {
+        accountType: accountStruct.name,
+        discriminator: discriminator,
+        totalFound: accounts.length,
+        accounts: decodedAccounts,
+        hasMore: accounts.length > limit,
+        searchMethod: 'Anchor program.account.all() method',
+      };
+    } catch (error) {
+      // More detailed error reporting
+      if (error instanceof Error) {
+        if (error.message.includes('Program account not found')) {
+          throw new Error(`Program ${programId} not found on-chain. Check if the program is deployed.`);
+        }
+        if (error.message.includes('Invalid program id')) {
+          throw new Error(`Invalid program ID format: ${programId}`);
+        }
+        if (error.message.includes('No IDL found')) {
+          throw new Error(`No IDL found for program ${programId}. This may not be an Anchor program or IDL is not published.`);
+        }
+        throw new Error(`Failed to get ${accountName} accounts: ${error.message}`);
+      }
+      throw new Error(`Failed to get ${accountName} accounts: Unknown error occurred`);
+    }
+  },
+});
+
+// 15. Get Type Details Tool - Details of a specific type/struct
+export const getTypeDetailsTool = createTool({
+  id: 'get-type-details',
+  description:
+    'Get detailed information about a specific program type or struct',
+  inputSchema: z.object({
+    programId: z.string().describe('Solana program ID'),
+    typeName: z.string().describe('Name of the type/struct to analyze'),
+  }),
+  execute: async ({ context }) => {
+    const { programId, typeName } = context;
+
+    if (!isValidSolanaAddress(programId)) {
+      throw new Error('Invalid Solana program ID format');
+    }
+
+    try {
+      const idl = await anchor.Program.fetchIdl(new PublicKey(programId), {
+        connection,
+      });
+
+      if (!idl) {
+        throw new Error('No IDL found for this program');
+      }
+
+      // Find type definition
+      const typeDef = (idl.types || []).find(
+        (type: any) => type.name === typeName
+      );
+
+      if (!typeDef) {
+        return {
+          found: false,
+          message: `Type '${typeName}' not found in program`,
+          availableTypes: (idl.types || []).map((type: any) => ({
+            name: type.name,
+            kind: type.type?.kind || 'struct',
+          })),
+        };
+      }
+
+      const result = {
+        found: true,
+        type: {
+          name: typeDef.name,
+          kind: typeDef.type?.kind || 'struct',
+          description: typeDef.docs?.join(' ') || 'No description available',
+        } as any,
+      };
+
+      // Handle different type kinds
+      if (typeDef.type?.kind === 'struct' || !typeDef.type?.kind) {
+        result.type.fields = (typeDef.type?.fields || []).map((field: any) => ({
+          name: field.name,
+          type:
+            typeof field.type === 'string'
+              ? field.type
+              : JSON.stringify(field.type),
+          description: (field.docs?.join(' ') || 'No description')
+            .split(' ')
+            .slice(0, 8)
+            .join(' '),
+        }));
+        result.type.fieldCount = (typeDef.type?.fields || []).length;
+      }
+
+      if (typeDef.type?.kind === 'enum') {
+        result.type.variants = (typeDef.type?.variants || []).map(
+          (variant: any) => ({
+            name: variant.name,
+            fields: variant.fields || null,
+            description: (variant.docs?.join(' ') || 'No description')
+              .split(' ')
+              .slice(0, 6)
+              .join(' '),
+          })
+        );
+        result.type.variantCount = (typeDef.type?.variants || []).length;
+      }
+
+      if ((typeDef.type as any)?.kind === 'alias') {
+        result.type.aliasFor = (typeDef.type as any)?.alias;
+        result.type.resolvedType = JSON.stringify((typeDef.type as any)?.alias);
+      }
+
+      // Size information if available
+      if ((typeDef.type as any)?.size) {
+        result.type.size = (typeDef.type as any).size;
+        result.type.sizeBytes = (typeDef.type as any).size;
+      }
+
+      return result;
+    } catch (error) {
+      throw new Error(
+        `Failed to get type details: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
   },
 });

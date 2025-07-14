@@ -338,7 +338,17 @@ Good luck, builders! We can't wait to see the innovative AI agents you create fo
 
 # Solana Blockchain Monitor Agent
 
-A comprehensive Solana blockchain monitoring agent built with Mastra that can analyze Anchor programs, wallet addresses, and transactions.
+A comprehensive Solana blockchain monitoring agent built with Mastra that specializes in Anchor program analysis, account monitoring, and transaction tracking. This agent provides deep insights into Solana programs by fetching real-time blockchain data and maintaining conversation context across sessions.
+
+## Agent Description and Purpose
+
+The **Solana Program Expert Agent** is designed to help developers, auditors, and blockchain enthusiasts analyze and monitor Solana Anchor programs effectively. It provides:
+
+- **🔍 Anchor Program Analysis**: Automatically fetch and analyze program IDLs, instructions, account structures, and error codes
+- **📊 Account Data Monitoring**: Fetch real-time account data, filter by criteria, and search by public keys
+- **🧠 Memory & Context Awareness**: Remembers program IDs and conversation context across sessions
+- **🔧 PDA Management**: Derive and validate Program Derived Addresses (PDAs)
+- **📈 Comprehensive Reporting**: Detailed analysis with actionable insights and security recommendations
 
 ## Project Structure
 
@@ -348,88 +358,130 @@ agent-challenge/
 │   └── mastra/
 │       ├── agents/
 │       │   └── blockchain-monitor-agent/
-│       │       ├── solana-expert-agent.ts
-│       │       ├── blockchain-monitor-workflow.ts
+│       │       ├── agent.ts
+│       │       ├── workflow.ts
 │       │       └── tools/
 │       │           ├── anchor-program-monitor.ts
-│       │           ├── account-analyzer.ts
-│       │           ├── transaction-monitor.ts
+│       │           ├── index.ts
 │       │           ├── types.ts
-│       │           ├── utils.ts
-│       │           └── index.ts
+│       │           └── utils.ts
 │       ├── config.ts
 │       └── index.ts
 ├── package.json
-├── .env
+├── Dockerfile
 └── README.md
 ```
 
-## Features
+## Setup Instructions
 
-### 🔍 **Anchor Program Analysis**
-- Automatically fetch program IDL from blockchain
-- List all instructions and their purposes
-- Show PDA account structures
-- Explain program capabilities and logic
-- Security analysis for smart contract vulnerabilities
+### Prerequisites
+- Node.js >= 20.9.0
+- pnpm (recommended) or npm
+- Docker (for containerized deployment)
 
-### 📊 **Wallet Address Analysis**
-- SOL balance and transaction history
-- All SPL tokens and their values
-- NFT collections owned
-- Staking accounts and rewards
-- Portfolio overview and risk assessment
-
-### 📈 **Transaction Analysis**
-- Transaction breakdown and flow
-- Program instructions executed
-- Account changes and balance shifts
-- Fee analysis and optimization tips
-
-### 🧠 **Memory & Context Awareness**
-- Remembers conversation context during sessions
-- Builds context over time for better insights
-- References previous analyses in the same conversation
-- Tracks patterns and trends within conversations
-- Provides more intelligent follow-up responses
-
-## Installation and Setup
-
-1. **Install dependencies:**
+### 1. Install Dependencies
 ```bash
-npm install
+# Clone the repository
+git clone <your-repo-url>
+cd agent-challenge
+
+# Install dependencies
+pnpm install
 ```
 
-2. **Set up environment variables:**
-Create a `.env` file with your configuration:
+### 2. Environment Configuration
+Create a `.env` file in the root directory:
+
 ```env
-OPENAI_API_KEY=your_openai_api_key
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+# LLM Configuration (Optional - defaults to local Ollama)
+MODEL_NAME_AT_ENDPOINT=qwen2.5:1.5b
+API_BASE_URL=http://127.0.0.1:11434/api
+
+# Solana RPC Configuration
+RPC_URL=https://api.devnet.solana.com
+
+# For production with Nosana endpoint:
+# MODEL_NAME_AT_ENDPOINT=qwen2.5:1.5b
+# API_BASE_URL=https://dashboard.nosana.com/jobs/YOUR_JOB_ID
 ```
 
-3. **Build the project:**
+### 3. Build the Project
 ```bash
-npm run build
+pnpm run build
 ```
 
-## Running the Agent
-
-Start the Mastra server:
-
+### 4. Start Development Server
 ```bash
-mastra dev --dir src/mastra
+pnpm run dev
 ```
 
-This will start the server and make your agent available at:
-- **Agent endpoint:** `http://localhost:8080/api/agents/solanaExpertAgent/generate`
-- **Playground:** `http://localhost:8080/playground`
+The agent will be available at:
+- **Playground UI**: `http://localhost:8080/playground`
+- **API Endpoint**: `http://localhost:8080/api/agents/solanaProgramAgent/generate`
 
-## Testing the Agent
+## Environment Variables Required
 
-### Test Anchor Program Analysis
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `MODEL_NAME_AT_ENDPOINT` | LLM model name | `qwen2.5:1.5b` | No |
+| `API_BASE_URL` | LLM API endpoint | `http://127.0.0.1:11434/api` | No |
+| `RPC_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` | No |
+
+### Local Development with Ollama
+For local development, you can use Ollama to run the LLM locally:
 
 ```bash
-curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Start Ollama service
+ollama serve
+
+# Pull the model
+ollama pull qwen2.5:1.5b
+```
+
+## Docker Build and Run Commands
+
+### Build Docker Image
+```bash
+# Build the image
+docker build -t yourusername/solana-monitor-agent:latest .
+
+# Tag for different versions
+docker tag yourusername/solana-monitor-agent:latest yourusername/solana-monitor-agent:v1.0.0
+```
+
+### Run Docker Container
+```bash
+# Run locally with environment file
+docker run -p 8080:8080 --env-file .env yourusername/solana-monitor-agent:latest
+
+# Run with custom environment variables
+docker run -p 8080:8080 \
+  -e RPC_URL=https://api.mainnet-beta.solana.com \
+  -e MODEL_NAME_AT_ENDPOINT=qwen2.5:7b \
+  yourusername/solana-monitor-agent:latest
+
+# Run in detached mode
+docker run -d -p 8080:8080 --env-file .env yourusername/solana-monitor-agent:latest
+```
+
+### Push to Docker Registry
+```bash
+# Login to Docker Hub
+docker login
+
+# Push the image
+docker push yourusername/solana-monitor-agent:latest
+docker push yourusername/solana-monitor-agent:v1.0.0
+```
+
+## Example Usage
+
+### 1. Basic Program Analysis
+```bash
+curl -X POST http://localhost:8080/api/agents/solanaProgramAgent/generate \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
@@ -443,17 +495,42 @@ curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
   }'
 ```
 
-### Test Memory Functionality
-
-Run the included test script:
+### 2. List All Instructions
 ```bash
-node test-memory.js
+curl -X POST http://localhost:8080/api/agents/solanaProgramAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { 
+        "role": "user", 
+        "content": "List all instructions for this program" 
+      }
+    ],
+    "resourceId": "user_123",
+    "threadId": "conversation_456"
+  }'
 ```
 
-Or test manually with resourceId and threadId:
+### 3. Fetch Account Data
+```bash
+curl -X POST http://localhost:8080/api/agents/solanaProgramAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { 
+        "role": "user", 
+        "content": "List all SmartWalletConfig accounts" 
+      }
+    ],
+    "resourceId": "user_123",
+    "threadId": "conversation_456"
+  }'
+```
+
+### 4. Memory-Enhanced Queries
 ```bash
 # First request - analyze a program
-curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+curl -X POST http://localhost:8080/api/agents/solanaProgramAgent/generate \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
@@ -466,8 +543,8 @@ curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
     "threadId": "conversation_456"
   }'
 
-# Second request - reference previous analysis (should remember)
-curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+# Second request - reference previous analysis (agent remembers the program)
+curl -X POST http://localhost:8080/api/agents/solanaProgramAgent/generate \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
@@ -481,16 +558,46 @@ curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
   }'
 ```
 
-### Test Wallet Analysis
+### 5. Interactive Playground
+Visit `http://localhost:8080/playground` to interact with the agent through a web interface.
 
+## Available Tools
+
+The agent provides 15 specialized tools for Solana program analysis:
+
+1. **analyzeProgramTool** - Basic program overview and metadata
+2. **listAllInstructionsTool** - List all program instructions with details
+3. **listAllAccountsTool** - List all account structures with details
+4. **listAllErrorsTool** - List all error codes with details
+5. **listAllTypesTool** - List all types/structs with details
+6. **getInstructionDetailsTool** - Detailed instruction analysis
+7. **getAccountDetailsTool** - Account structure information
+8. **getErrorDetailsTool** - Specific error details
+9. **getTypeDetailsTool** - Specific type/struct details
+10. **getProgramAccountsByTypeTool** - List existing accounts by type
+11. **fetchAllAccountsTool** - Fetch all accounts of a type
+12. **fetchAccountDataTool** - Fetch single account data
+13. **fetchAccountsByFilterTool** - Filter accounts by field values
+14. **searchAccountsByPubkeyTool** - Search accounts by public keys
+15. **derivePdaAddressTool** - Derive PDA addresses from seeds
+
+## Testing
+
+### Run Memory Test
 ```bash
-curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
+node test-memory.js
+```
+
+### Test Specific Functionality
+```bash
+# Test program analysis
+curl -X POST http://localhost:8080/api/agents/solanaProgramAgent/generate \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
       { 
         "role": "user", 
-        "content": "Analyze this wallet: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU" 
+        "content": "Analyze this Anchor program: 9gJ7jZaAvUafgTFPoqkCwbuvC9kpZCPtHfHjMkQ66wu9" 
       }
     ],
     "resourceId": "user_123",
@@ -498,75 +605,26 @@ curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
   }'
 ```
 
-### Test Transaction Analysis
+## Development Commands
 
 ```bash
-curl -X POST http://localhost:8080/api/agents/solanaExpertAgent/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      { 
-        "role": "user", 
-        "content": "Analyze this transaction: [transaction_signature]" 
-      }
-    ],
-    "resourceId": "user_123", 
-    "threadId": "conversation_456"
-  }'
+# Development server
+pnpm run dev
+
+# Build for production
+pnpm run build
+
+# Start production server
+pnpm run start
+
+# Lint code
+pnpm run lint
+
+# Format code
+pnpm run format
+
+# Check code quality
+pnpm run check
 ```
 
-## Expected Responses
-
-### Program Analysis Response
-The agent will provide:
-- 📊 Program metadata (name, version, complexity)
-- 🔧 Complete instruction list with actual instruction names
-- 🗃️ Complete PDA structure list with actual PDA names
-- ⚠️ All error codes with codes and messages
-- 🔒 Security analysis with specific recommendations
-
-### Wallet Analysis Response
-The agent will provide:
-- 💰 SOL balance and portfolio value
-- 🪙 SPL token holdings with values
-- 🖼️ NFT collections and metadata
-- 📈 Staking accounts and rewards
-- ⚠️ Risk assessment and security notes
-
-## Available Tools
-
-1. **anchorProgramMonitor** - Comprehensive Anchor program analysis
-2. **solanaAccountAnalyzer** - Wallet and account analysis
-3. **solanaTxMonitorTool** - Transaction monitoring and analysis
-
-## Usage Examples
-
-### Simple Requests
-- "What's in this wallet: [address]?"
-- "Explain this program: [program-id]"
-- "Show me this transaction: [signature]"
-
-### Advanced Analysis
-- "Give me a comprehensive analysis of program [program-id] with security recommendations"
-- "I want to interact with instruction 'create_smart_wallet' - walk me through it"
-- "Show me all PDA accounts for this program and help me fetch specific data"
-
-### Memory-Enhanced Queries
-- "Compare this program to the previous one I analyzed"
-- "Has this wallet address changed since my last check?"
-- "Show me patterns across all the transactions I've analyzed"
-- "What security issues have I found in similar programs?"
-
-## Development
-
-### Build
-```bash
-npm run build
-```
-
-### Development Server
-```bash
-mastra dev --dir src/mastra
-```
-
-The agent follows the Mastra framework patterns and provides comprehensive Solana blockchain analysis capabilities.
+The agent follows the Mastra framework patterns and provides comprehensive Solana blockchain analysis capabilities with persistent memory and context awareness.
